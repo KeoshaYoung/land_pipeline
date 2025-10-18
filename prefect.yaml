@@ -1,20 +1,24 @@
 name: land_pipeline
 prefect-version: 3.4.24
 
-# Pull the code from GitHub for serverless runs
 pull:
   - prefect.deployments.steps.git_clone:
+      id: clone
       repository: "https://github.com/KeoshaYoung/land_pipeline.git"
       branch: "main"
+      # access_token: "{{ prefect.blocks.secret.github_pat }}"   # only if private
   - prefect.deployments.steps.set_working_directory:
-      directory: "." # use "." unless your repo has a nested 'land_pipeline/' folder
+      directory: "{{ clone.directory }}"
 
 deployments:
   - name: nightly_ingest
     entrypoint: flow_leads.py:lead_ingest
     tags: [land, biz, prod]
     work_pool:
-      name: land-pool
+      name: serverless-1
+      job_variables:
+        image: "prefecthq/prefect-client:3-python3.11"
+        pip_packages: ["prefect>=3.4", "requests"]
     schedules:
       - cron: "0 2 * * *"
         timezone: "America/New_York"
@@ -24,9 +28,12 @@ deployments:
     entrypoint: nightly_backup.py:nightly_backup
     tags: [backup, prod]
     work_pool:
-      name: land-pool
+      name: serverless-1
+      job_variables:
+        image: "prefecthq/prefect-client:3-python3.11"
+        pip_packages: ["prefect>=3.4", "requests"]
     schedules:
-      - cron: "5 2 * * *" # run 5 minutes after ingest
+      - cron: "5 2 * * *"
         timezone: "America/New_York"
         day_or: true
     parameters:
