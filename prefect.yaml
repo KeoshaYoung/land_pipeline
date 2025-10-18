@@ -40,3 +40,17 @@ deployments:
       - cron: 0 2 * * *
         timezone: null
         day_or: true
+
+  - name: nightly_backup
+    entrypoint: nightly_backup.py:nightly_backup
+    tags: [backup, prod]
+    work_pool:
+      name: land-pool
+    schedules:
+      - cron: "5 2 * * *" # run 5 minutes after ingest
+        timezone: "America/New_York"
+        day_or: true
+    parameters:
+      make_webhook_url: "https://hook.us2.make.com/t9gtkgg5idvtw10tf767d9u957v71dah"
+      tables: []
+      subfolder: ""
