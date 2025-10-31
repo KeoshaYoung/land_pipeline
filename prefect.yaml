@@ -6,11 +6,11 @@ pull:
       id: clone
       repository: "https://github.com/KeoshaYoung/land_pipeline.git"
       branch: "main"
-      # access_token: "{{ prefect.blocks.secret.github_pat }}"   # only if private
   - prefect.deployments.steps.set_working_directory:
       directory: "{{ clone.directory }}"
 
 deployments:
+  # Lead ingestion flow
   - name: nightly_ingest
     entrypoint: flow_leads.py:lead_ingest
     tags: [land, biz, prod]
@@ -24,6 +24,7 @@ deployments:
         timezone: "America/New_York"
         day_or: true
 
+  # Nightly Airtable backup to Google Drive (via Make)
   - name: nightly_backup
     entrypoint: nightly_backup.py:nightly_backup
     tags: [backup, prod]
@@ -31,12 +32,32 @@ deployments:
       name: serverless-1
       job_variables:
         image: "prefecthq/prefect-client:3-python3.11"
-        pip_packages: ["prefect>=3.4", "requests"]
+        pip_packages: ["prefect>=3.4", "httpx"]
     schedules:
       - cron: "5 2 * * *"
         timezone: "America/New_York"
         day_or: true
-    parameters:
-      make_webhook_url: "https://hook.us2.make.com/t9gtkgg5idvtw10tf767d9u957v71dah"
-      tables: []
-      subfolder: ""
+    parameters: {}
+
+  # PandaDoc document generation flows (manually triggered)
+  - name: pandadoc/create-offer-letter
+    entrypoint: flows/pandadoc_triggers.py:create_offer_letter
+    work_pool:
+      name: serverless-1
+      job_variables:
+        image: "prefecthq/prefect-client:3-python3.11"
+        pip_packages: ["prefect>=3.4", "httpx"]
+    schedules: []
+    parameters: {}
+    description: "Manually triggered - creates PandaDoc Offer Letter"
+
+  - name: pandadoc/create-psa
+    entrypoint: flows/pandadoc_triggers.py:create_psa
+    work_pool:
+      name: serverless-1
+      job_variables:
+        image: "prefecthq/prefect-client:3-python3.11"
+        pip_packages: ["prefect>=3.4", "httpx"]
+    schedules: []
+    parameters: {}
+    description: "Manually triggered - creates PandaDoc PSA"

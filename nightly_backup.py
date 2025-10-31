@@ -1,41 +1,76 @@
-# nightly_backup.py
-from prefect import flow, task, get_run_logger
+"""
+Nightly backup flow - triggers Make webhook to export Airtable → CSV → Google Drive.
+"""
+
+from prefect import flow, task
+from prefect.blocks.system import Secret
+import httpx
+from typing import List, Optional
+
 
 @task(retries=2, retry_delay_seconds=10)
-def call_make_webhook(webhook_url: str, payload: dict) -> tuple[int, str]:
+def trigger_make_backup(webhook_url: str, tables: List[str], subfolder: str) -> dict:
     """
-    POST JSON to a Make webhook. Returns (status_code, body).
-    Uses requests for reliable redirect/TLS handling.
+    POST to Make webhook to trigger Airtable → CSV → Drive backup.
+    
+    Args:
+        webhook_url: Make webhook URL (loaded from Secret block)
+        tables: List of table names to back up (empty = all tables)
+        subfolder: Optional subfolder name in /Backups/ (empty = date-based folder)
+        
+    Returns:
+        Response from Make webhook
     """
-    import requests
-    resp = requests.post(
+    payload = {
+        "tables": tables,
+        "subfolder": subfolder
+    }
+    
+    response = httpx.post(
         webhook_url,
         json=payload,
-        timeout=30,
-        allow_redirects=False  # surface any redirects instead of silently following
+        timeout=60.0
     )
-    return resp.status_code, (resp.text or "")
+    response.raise_for_status()
+    
+    return response.json() if response.text else {"status": "triggered"}
 
-@flow(name="nightly_backup")
+
+@flow(name="nightly-backup", log_prints=True)
 def nightly_backup(
-    make_webhook_url: str,
-    tables: list[str] | None = None,
+    tables: Optional[List[str]] = None,
     subfolder: str = ""
-):
-    log = get_run_logger()
-    payload = {
-        "source": "prefect",
-        "flow": "nightly_backup",
-        "tables": tables or ["Raw Leads", "Master CRM", "Properties"],
-        "subfolder": subfolder,  # e.g., "2025-10-17"; blank = Make will use its own date
-    }
-    status, body = call_make_webhook(webhook_url=make_webhook_url, payload=payload)
-    log.info("Make webhook status=%s body=%s", status, (body[:500] if body else ""))
+) -> dict:
+    """
+    Trigger nightly Airtable backup via Make webhook.
+    
+    Args:
+        tables: List of specific tables to backup (empty/None = all tables from registry)
+        subfolder: Optional subfolder name (empty = creates YYYY-MM-DD folder)
+        
+    Returns:
+        Webhook response
+    """
+    print("🔄 Starting nightly Airtable backup...")
+    
+    # Load webhook URL from Secret block
+    webhook_secret = Secret.load("make-backup-webhook")
+    webhook_url = webhook_secret.get()
+    
+    # Default to empty list if None
+    if tables is None:
+        tables = []
+    
+    print(f"Tables to backup: {tables if tables else 'ALL (from registry)'}")
+    print(f"Subfolder: {subfolder if subfolder else 'YYYY-MM-DD (auto)'}")
+    
+    # Trigger the backup
+    result = trigger_make_backup(webhook_url, tables, subfolder)
+    
+    print("✅ Backup triggered successfully")
+    return result
 
-    # Fail the flow if Make rejects the request
-    if status >= 400:
-        raise RuntimeError(f"Make webhook failed: {status} :: {body[:500]}")
 
 if __name__ == "__main__":
-    # quick local smoke test: paste your real webhook URL here
-    nightly_backup("https://hook.us2.make.com/t9gtkgg5idvtw10tf767d9u957v71dah")
+    # Test locally
+    nightly_backup()
