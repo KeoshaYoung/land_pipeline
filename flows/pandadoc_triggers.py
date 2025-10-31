@@ -28,7 +28,16 @@ def call_pandadoc_webhook(webhook_url: str, payload: Dict[str, Any]) -> Dict[str
         timeout=30.0
     )
     response.raise_for_status()
-    return response.json() if response.text else {"status": "success"}
+    
+    # Make webhooks often return empty body with 200/202 status
+    # Only try to parse JSON if response has content
+    if response.text and response.text.strip():
+        try:
+            return response.json()
+        except Exception:
+            return {"status": "accepted", "status_code": response.status_code}
+    else:
+        return {"status": "accepted", "status_code": response.status_code}
 
 
 @flow(name="create-offer-letter", log_prints=True)
