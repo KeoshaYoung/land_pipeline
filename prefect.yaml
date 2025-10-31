@@ -40,7 +40,7 @@ deployments:
     parameters: {}
 
   # PandaDoc document generation flows (manually triggered)
-  - name: pandadoc/create-offer-letter
+  - name: pandadoc-offer
     entrypoint: flows/pandadoc_triggers.py:create_offer_letter
     work_pool:
       name: serverless-1
@@ -51,7 +51,7 @@ deployments:
     parameters: {}
     description: "Manually triggered - creates PandaDoc Offer Letter"
 
-  - name: pandadoc/create-psa
+  - name: pandadoc-psa
     entrypoint: flows/pandadoc_triggers.py:create_psa
     work_pool:
       name: serverless-1
