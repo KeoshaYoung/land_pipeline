@@ -59,3 +59,33 @@ Automated land acquisition and disposition pipeline.
 - QuickBooks Online (accounting)
 - HubSpot (buyer CRM)
 - PropStream (lead source)
+
+## Buyer CRM (Airtable-Based)
+
+**Table:** Buyers/Deals
+
+**Key Features:**
+- Lead source tracking
+- Automatic follow-up reminders
+- Temperature-based prioritization
+- Communication logging
+- Stage-based pipeline management
+
+**Daily Workflow:**
+1. Check "Follow-up Needed" view
+2. Review "Hot Leads"
+3. Update "Last Contact Date" after each interaction
+4. Set "Next Follow-up Date" for scheduling
+5. Log communication in "Communication Log"
+
+**Views:**
+- Follow-up Needed (action list)
+- Hot Leads (priority buyers)
+- This Week's Follow-ups (schedule)
+- By Property (property-specific inquiries)
+- Kanban by Temperature (visual pipeline)
+
+**Automations:**
+- Auto-set first contact date
+- Daily follow-up reminders
+- Deal closed notifications
