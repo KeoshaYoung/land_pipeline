@@ -94,16 +94,18 @@ Net Profit: IF({Type} = "Income", {Amount}, IF({Type} = "Expense", {Amount} * -1
 
 | Deployment | Schedule | Parameters | Status |
 |---|---|---|---|
-| `lead_ingest/nightly_ingest` | Daily 2:00 AM ET | tables, subfolder | Active |
-| `nightly-backup/nightly_backup` | Daily 2:05 AM ET | tables, subfolder | Active |
-| `create-offer-letter/pandadoc-offer` | Manual trigger | tables, subfolder, make_webhook_url | Active |
-| `create-psa/pandadoc-psa` | Manual trigger | tables, subfolder, make_webhook_url | Active |
+| `lead_ingest/nightly_ingest` | Daily 2:00 AM ET | none | ✅ Active — verified |
+| `nightly-backup/nightly_backup` | Daily 2:05 AM ET | tables, subfolder, make_webhook_url | ✅ Active — verified |
+| `create-offer-letter/pandadoc-offer` | Manual trigger | seller_name, seller_email, property_address, apn, county, offer_amount, make_webhook_url, parcel_record_id | ✅ Active |
+| `create-psa/pandadoc-psa` | Manual trigger | seller_name, seller_email, property_address, apn, county, offer_amount, earnest_money, make_webhook_url, parcel_record_id | ✅ Active |
 
 ### Known Issues Fixed
 
-**SignatureMismatchError — `make_webhook_url` parameter mismatch**
-- Deployment was passing `make_webhook_url` but flow function only accepted `tables` and `subfolder`
-- Fix: Add `make_webhook_url: str = None` as optional parameter to all affected flow functions
+**SignatureMismatchError — `make_webhook_url` parameter mismatch** ✅ Resolved
+- Deployment was passing `make_webhook_url` but flow functions only accepted `tables` and `subfolder`
+- Fix: Added `make_webhook_url: Optional[str] = None` to `nightly_backup`, `create_offer_letter`, and `create_psa` flow signatures
+- Fix: Removed `make_webhook_url: null` from `prefect.yaml` deployment parameter blocks
+- All 4 deployments redeployed and verified working March 21, 2026
 
 ### Prefect Secrets Required
 
@@ -258,8 +260,8 @@ All templates use `{{token}}` format for variable injection.
 | Phase | Description | Status | Notes |
 |---|---|---|---|
 | Phase 0 | Business foundation + tech stack | ✅ 100% | LLC, bank account, tools configured |
-| Phase 1 | Lead ingest + enrichment automation | ⏳ 0% | Starts after Prefect fix |
-| Phase 2 | Offer generation | ⚠️ 90% | Working but nightly crash — fix in progress |
+| Phase 1 | Lead ingest + enrichment automation | 🟡 20% | flow_leads.py built — Make automation pending |
+| Phase 2 | Offer generation | ✅ 100% | Crash fixed, Airtable writeback added, all deployments verified |
 | Phase 3 | Contract + reporting automation | 🟡 40% | Templates done, webhooks pending |
 | Phase 4 | Marketing auto-distribution | 🟡 30% | Accounts created, no posts |
 | Phase 5 | Buyer pipeline automation | ⏳ 20% | Tables ready, workflows pending |
@@ -275,12 +277,15 @@ All templates use `{{token}}` format for variable injection.
 
 ## Immediate Next Steps
 
-1. ✅ Fix Prefect `SignatureMismatchError` — add `make_webhook_url: str = None` to flow functions
-2. ⏳ Complete Airtable data migration — link existing contacts to Parcels, clean deprecated fields
-3. ⏳ Audit Make scenarios
-4. ⏳ Audit PandaDoc templates + webhooks
-5. ⏳ Build Phase 1 — Lead ingest automation (Make + Claude API for Dexter replacement)
-6. ⏳ Send follow-up on Hogan + Mogannam offers (Day 3/7/14 sequence)
+1. ✅ Fix Prefect `SignatureMismatchError` — resolved, all deployments verified
+2. ✅ Airtable full audit + rebuild — all 13 tables restructured, 40+ fields added, 25+ views added
+3. ✅ Prefect code overhaul — real lead ingest, Airtable writeback on offers, proper logging
+4. ⏳ Audit Make scenarios — **starting next session**
+5. ⏳ Audit PandaDoc templates + webhooks
+6. ⏳ Complete Airtable data migration — link existing contacts to Parcels, clean deprecated fields
+7. ⏳ Build Phase 1 Make automation — lead import, dedupe, enrichment trigger
+8. ⏳ Build Claude API integrations — Dexter (property research), Milli (follow-ups)
+9. ⏳ Send follow-up on Hogan + Mogannam offers (Day 3/7/14 sequence)
 
 ---
 
@@ -294,4 +299,16 @@ All templates use `{{token}}` format for variable injection.
 | Gmail API | Email automation | Phase 1 |
 | Google Drive API | Document filing | Phase 3 |
 
+---
 
+## Current Deal Activity
+
+| # | Owner | Acres | Assessed | Offer Sent | Status |
+|---|---|---|---|---|---|
+| #2 | Christopher Mogannam | 8.9 | $51,500 | $36,050 (70%) | Awaiting response |
+| #4 | James Hogan | 20.7 | $126,000 | $88,200 (70%) | Awaiting response |
+| #7 | Randy Vonsmith | 24.4 | $17,800 | Needs research | Zoning check needed |
+| #9 | Steven Maloy | 35.7 | $36,880 | Needs research | Over 30 acres — borderline |
+| #10 | Robert Allen | 9.0 | $74,200 | Needs research | Good candidate |
+
+**Note:** Original offers sent Nov 4, 2025 were at ~20% of assessed value based on old business model. Current model is 70% of assessed. Consider sending revised offers.
