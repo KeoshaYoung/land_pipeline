@@ -10,7 +10,11 @@ pull:
       directory: "{{ clone.directory }}"
 
 deployments:
-  # Lead ingestion flow
+
+  # ---------------------------------------------------------------------------
+  # Lead ingestion — nightly at 2:00 AM ET
+  # Fetches Needs Enrichment leads, deduplicates, scores, writes back to Airtable
+  # ---------------------------------------------------------------------------
   - name: nightly_ingest
     entrypoint: flow_leads.py:lead_ingest
     tags: [land, biz, prod]
@@ -18,13 +22,19 @@ deployments:
       name: serverless-1
       job_variables:
         image: "prefecthq/prefect-client:3-python3.11"
-        pip_packages: ["prefect>=3.4", "requests"]
+        pip_packages:
+          - "prefect>=3.4"
+          - "httpx"        # used by airtable_utils — was incorrectly set to requests
     schedules:
       - cron: "0 2 * * *"
         timezone: "America/New_York"
         day_or: true
+    parameters: {}
 
-  # Nightly Airtable backup to Google Drive (via Make)
+  # ---------------------------------------------------------------------------
+  # Nightly Airtable backup — 2:05 AM ET (5 min after ingest)
+  # Triggers Make webhook → CSV export → Google Drive /Backups/YYYY-MM-DD/
+  # ---------------------------------------------------------------------------
   - name: nightly_backup
     entrypoint: nightly_backup.py:nightly_backup
     tags: [backup, prod]
@@ -32,32 +42,59 @@ deployments:
       name: serverless-1
       job_variables:
         image: "prefecthq/prefect-client:3-python3.11"
-        pip_packages: ["prefect>=3.4", "httpx"]
+        pip_packages:
+          - "prefect>=3.4"
+          - "httpx"
     schedules:
       - cron: "5 2 * * *"
         timezone: "America/New_York"
         day_or: true
-    parameters: {}
+    parameters:
+      tables: []       # empty = backup all tables
+      subfolder: ""    # empty = auto YYYY-MM-DD folder
 
-  # PandaDoc document generation flows (manually triggered)
+  # ---------------------------------------------------------------------------
+  # PandaDoc Offer Letter — manual trigger only
+  # Required parameters: seller_name, seller_email, property_address, apn, county
+  # Optional: parcel_record_id, contact_record_id, opportunity_record_id for Airtable writeback
+  # ---------------------------------------------------------------------------
   - name: pandadoc-offer
     entrypoint: flows/pandadoc_triggers.py:create_offer_letter
+    tags: [pandadoc, prod]
     work_pool:
       name: serverless-1
       job_variables:
         image: "prefecthq/prefect-client:3-python3.11"
-        pip_packages: ["prefect>=3.4", "httpx"]
+        pip_packages:
+          - "prefect>=3.4"
+          - "httpx"
     schedules: []
-    parameters: {}
-    description: "Manually triggered - creates PandaDoc Offer Letter"
+    parameters:
+      state: "GA"
+      offer_expiry_days: 14
+    description: "Manually triggered — creates PandaDoc Offer Letter and writes Offer record to Airtable"
 
+  # ---------------------------------------------------------------------------
+  # PandaDoc PSA — manual trigger only
+  # Required parameters: seller_name, seller_email, property_address, apn, county, offer_amount
+  # Optional: earnest_money, closing_date, parcel_record_id for Airtable writeback
+  # ---------------------------------------------------------------------------
   - name: pandadoc-psa
     entrypoint: flows/pandadoc_triggers.py:create_psa
+    tags: [pandadoc, prod]
     work_pool:
       name: serverless-1
       job_variables:
         image: "prefecthq/prefect-client:3-python3.11"
-        pip_packages: ["prefect>=3.4", "httpx"]
+        pip_packages:
+          - "prefect>=3.4"
+          - "httpx"
     schedules: []
-    parameters: {}
-    description: "Manually triggered - creates PandaDoc PSA"
+    parameters:
+      state: "GA"
+      buyer_company: "Young Legacy Veterans Consulting LLC"
+      buyer_title: "Managing Member"
+      inspection_days: "30"
+      rollback_responsibility: "Buyer"
+      offer_expiry_days: 14
+    description: "Manually triggered — creates PandaDoc Purchase & Sale Agreement"
