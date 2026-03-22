@@ -127,6 +127,7 @@ Net Profit: IF({Type} = "Income", {Amount}, IF({Type} = "Expense", {Amount} * -1
 | Nightly CSV Backup | Webhook from Prefect (2:05 AM ET) | Airtable → CSV → Google Drive `/Backups/YYYY-MM-DD/` | ✅ Active — verified |
 | PandaDoc - Create Offer Letter | Webhook from Prefect | Webhook → PandaDoc Create Document → Airtable Offers create record | ✅ Active — verified |
 | PandaDoc - Create PSA | Webhook from Prefect | Webhook → PandaDoc Create Document → Airtable Offers create record | ✅ Active — verified |
+| REAPI Lead Import — GA Land | Daily 1:00 AM ET | REAPI PropertySearch → Iterator → Filter → Airtable Search (dedupe) → Lead Intake create record → Automations Log | ✅ Active — verified |
 
 ### Nightly CSV Backup — Table Coverage
 
@@ -145,6 +146,51 @@ Net Profit: IF({Type} = "Income", {Amount}, IF({Type} = "Expense", {Amount} * -1
 | Backup Log | ✅ |
 | Automations Log | ❌ Intentionally excluded — debug data only |
 | KPIs | ❌ Intentionally excluded — calculated from source tables |
+
+### REAPI Lead Import — Configuration
+
+**API:** RealEstateAPI.com (Backend Secret key stored in Prefect Secret block `reapi-api-key`)
+
+**Search parameters:**
+```json
+{
+  "state": "GA",
+  "property_type": "LAND",
+  "lot_size_min": 217800,
+  "lot_size_max": 1306800,
+  "size": 500
+}
+```
+
+**Target counties (10 high-growth GA counties):**
+Jackson, Barrow, Walton, Newton, Jasper, Morgan, Effingham, Bryan, Long, Dawson
+
+**Filter logic:**
+- County must match one of 10 target counties (OR)
+- `corporateOwned` = false (AND)
+- `ownerOccupied` = false (AND)
+- `assessedValue` > 0 (AND)
+- Lead Hash not already in Lead Intake (dedupe check)
+
+**Field mapping:**
+
+| REAPI Field | Airtable Field | Transform |
+|---|---|---|
+| `address.county` | County | Direct |
+| `address.state` | State | Direct |
+| `apn` | APN | Direct |
+| `address.address` | Address | Direct |
+| `address.city` | City | Direct |
+| `address.zip` | Zip | Direct |
+| `lotSquareFeet` | Acreage | `round(x / 43560, 2)` |
+| `owner1FirstName` + `owner1LastName` | Owner Name | Concatenate |
+| `mailAddress.address` | Seller Mailing Address | Direct |
+| `mailAddress.state` | Owner State | Direct |
+| `assessedValue` | Est. Market Value | Direct |
+| `latitude` | Lat | Direct |
+| `longitude` | Lon | Direct |
+
+**Note:** `size: 500` pulls 500 statewide GA records and filters to target counties in Make. Future optimization: run one HTTP call per county (10 x 50 records) using Make repeater for guaranteed county coverage.
 
 ### Make — Known Issues Fixed
 
@@ -304,7 +350,7 @@ All templates use `{{token}}` format for variable injection.
 | Phase | Description | Status | Notes |
 |---|---|---|---|
 | Phase 0 | Business foundation + tech stack | ✅ 100% | LLC, bank account, tools configured |
-| Phase 1 | Lead ingest + enrichment automation | 🟡 20% | flow_leads.py built — Make automation pending |
+| Phase 1 | Lead ingest + enrichment automation | 🟡 50% | REAPI lead import live, enrichment + scoring pending |
 | Phase 2 | Offer generation | ✅ 100% | Crash fixed, Airtable writeback, Make scenarios verified, sellers receive emails |
 | Phase 3 | Contract + reporting automation | 🟡 50% | Templates done, PSA flow live, PandaDoc webhooks active |
 | Phase 4 | Marketing auto-distribution | 🟡 30% | Accounts created, no posts |
@@ -326,10 +372,10 @@ All templates use `{{token}}` format for variable injection.
 3. ✅ Prefect code overhaul — real lead ingest, Airtable writeback on offers, proper logging
 4. ✅ Make audit — all 3 scenarios fixed, activated, and verified
 5. ✅ PandaDoc audit — both templates verified, sellers now receive documents via email
-6. ⏳ Complete Airtable data migration — link existing contacts to Parcels, clean deprecated fields
-7. ⏳ Build Phase 1 Make automation — lead import, dedupe, enrichment trigger
-8. ⏳ Build Claude API integrations — Dexter (property research), Milli (follow-ups)
-9. ⏳ Send follow-up on Hogan + Mogannam offers (Day 3/7/14 sequence)
+6. ✅ REAPI Lead Import built and activated — 10 target GA counties, daily at 1AM
+7. ⏳ Build Claude API property enrichment flow — research each lead, update Lead Score
+8. ⏳ Build Milli replacement — automated Day 3/7/14 follow-up sequences on sent offers
+9. ⏳ Optimize REAPI import — one HTTP call per county using Make repeater
 
 ---
 
@@ -337,9 +383,10 @@ All templates use `{{token}}` format for variable injection.
 
 | Integration | Purpose | Phase |
 |---|---|---|
-| DataTree API | Property enrichment | Phase 1 |
+| Claude | Property enrichment | Phase 1 |
 | QuickBooks Online | Accounting + tax prep | Phase 3 |
-| PropStream | Lead source | Active |
+| REAPI | Lead source | Active |
 | Gmail API | Email automation | Phase 1 |
 | Google Drive API | Document filing | Phase 3 |
+
 
