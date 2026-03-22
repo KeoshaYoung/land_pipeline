@@ -11,7 +11,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
-from airtable_utils import create_airtable_record, update_airtable_record, log_automation
+from airtable_utils import log_automation
 
 
 @task(retries=2, retry_delay_seconds=5)
@@ -43,52 +43,7 @@ def call_pandadoc_webhook(webhook_url: str, payload: Dict[str, Any]) -> Dict[str
         return {"status": "accepted", "status_code": response.status_code}
 
 
-@task(retries=2, retry_delay_seconds=5)
-def create_offer_record(
-    parcel_record_id: Optional[str],
-    offer_amount: str,
-    sent_date: str,
-    expiry_date: str,
-    doc_id: Optional[str] = None,
-    pandadoc_url: Optional[str] = None,
-    contact_record_id: Optional[str] = None,
-    opportunity_record_id: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    Create a record in the Airtable Offers table after document generation.
 
-    Args:
-        parcel_record_id: Airtable record ID for the linked Parcel (starts with "rec")
-        offer_amount: Dollar amount of the offer
-        sent_date: Date offer was sent (YYYY-MM-DD)
-        expiry_date: Date offer expires (YYYY-MM-DD)
-        doc_id: PandaDoc document ID (if returned by webhook)
-        pandadoc_url: PandaDoc document URL (if returned by webhook)
-        contact_record_id: Airtable record ID for linked Contact
-        opportunity_record_id: Airtable record ID for linked Opportunity
-
-    Returns:
-        Created Airtable Offers record
-    """
-    fields = {
-        "Template": "Offer Letter",
-        "Doc Status": "Sent",
-        "Sent Date": sent_date,
-        "Offer Amount": float(offer_amount) if offer_amount else 0,
-    }
-
-    if parcel_record_id:
-        fields["Property"] = [{"id": parcel_record_id}]
-    if contact_record_id:
-        fields["Contact"] = [{"id": contact_record_id}]
-    if opportunity_record_id:
-        fields["Opportunity"] = [{"id": opportunity_record_id}]
-    if doc_id:
-        fields["Doc ID"] = doc_id
-    if pandadoc_url:
-        fields["PandaDoc URL"] = pandadoc_url
-
-    return create_airtable_record("Offers", fields)
 
 
 @flow(name="create-offer-letter", log_prints=True)
@@ -103,12 +58,10 @@ def create_offer_letter(
     offer_amount: str = "0",
     offer_expiry_days: int = 14,
     make_webhook_url: Optional[str] = None,  # optional override — default loads from Secret
-    parcel_record_id: Optional[str] = None,  # Airtable rec ID for writeback
-    contact_record_id: Optional[str] = None,
-    opportunity_record_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Create an Offer Letter via PandaDoc and write results back to Airtable.
+    Create an Offer Letter via PandaDoc.
+    Airtable writeback is handled by Make using the real PandaDoc document ID.
 
     Args:
         seller_name: Full name of the seller
@@ -121,9 +74,6 @@ def create_offer_letter(
         offer_amount: Offer price (without $ or commas)
         offer_expiry_days: Days until offer expires (default: 14)
         make_webhook_url: Optional webhook URL override
-        parcel_record_id: Airtable Parcels record ID for linking Offer record
-        contact_record_id: Airtable Contacts record ID for linking Offer record
-        opportunity_record_id: Airtable Opportunities record ID for linking Offer record
 
     Returns:
         Webhook response
@@ -166,24 +116,8 @@ def create_offer_letter(
     print(f"Offer Amount: ${offer_amount}")
     print(f"Expiry Date: {expiry_date}")
 
-    # Call webhook
+    # Call webhook — Make handles Airtable writeback with real PandaDoc doc ID
     result = call_pandadoc_webhook(webhook_url, payload)
-
-    # Write Offer record back to Airtable
-    doc_id = result.get("doc_id") or result.get("id")
-    pandadoc_url = result.get("url") or result.get("pandadoc_url")
-
-    offer_record = create_offer_record(
-        parcel_record_id=parcel_record_id,
-        offer_amount=offer_amount,
-        sent_date=today,
-        expiry_date=expiry_date,
-        doc_id=doc_id,
-        pandadoc_url=pandadoc_url,
-        contact_record_id=contact_record_id,
-        opportunity_record_id=opportunity_record_id,
-    )
-    print(f"✅ Offer record created in Airtable: {offer_record.get('id')}")
 
     # Log to Automations Log
     log_automation(
@@ -220,12 +154,10 @@ def create_psa(
     rollback_responsibility: str = "Buyer",
     offer_expiry_days: int = 14,
     make_webhook_url: Optional[str] = None,  # optional override — default loads from Secret
-    parcel_record_id: Optional[str] = None,
-    contact_record_id: Optional[str] = None,
-    opportunity_record_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Create a Purchase & Sale Agreement via PandaDoc and write results back to Airtable.
+    Create a Purchase & Sale Agreement via PandaDoc.
+    Airtable writeback is handled by Make using the real PandaDoc document ID.
 
     Args:
         seller_name: Full name of the seller
