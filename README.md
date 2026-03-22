@@ -122,11 +122,55 @@ Net Profit: IF({Type} = "Income", {Amount}, IF({Type} = "Expense", {Amount} * -1
 
 ## Make Scenarios
 
-| Scenario | Trigger | Flow |
-|---|---|---|
-| Nightly CSV Backup | Schedule (2:05 AM ET) | Airtable → CSV → Google Drive `/Backups/YYYY-MM-DD/` |
-| PandaDoc - Create Offer Letter | Webhook from Prefect | Webhook → PandaDoc API → Airtable Offers update |
-| PandaDoc - Create PSA | Webhook from Prefect | Webhook → PandaDoc API → Airtable Offers update |
+| Scenario | Trigger | Flow | Status |
+|---|---|---|---|
+| Nightly CSV Backup | Webhook from Prefect (2:05 AM ET) | Airtable → CSV → Google Drive `/Backups/YYYY-MM-DD/` | ✅ Active — verified |
+| PandaDoc - Create Offer Letter | Webhook from Prefect | Webhook → PandaDoc Create Document → Airtable Offers create record | ✅ Active — verified |
+| PandaDoc - Create PSA | Webhook from Prefect | Webhook → PandaDoc Create Document → Airtable Offers create record | ✅ Active — verified |
+
+### Nightly CSV Backup — Table Coverage
+
+| Table | Backed Up |
+|---|---|
+| Lead Intake | ✅ |
+| Contacts | ✅ |
+| Parcels | ✅ |
+| Opportunities | ✅ |
+| Offers | ✅ |
+| Listings | ✅ |
+| Buyers/Deals | ✅ |
+| Transactions | ✅ |
+| Email Templates | ✅ |
+| Web Leads | ✅ |
+| Backup Log | ✅ |
+| Automations Log | ❌ Intentionally excluded — debug data only |
+| KPIs | ❌ Intentionally excluded — calculated from source tables |
+
+### Make — Known Issues Fixed
+
+**Nightly CSV Backup:**
+- Scenario was Inactive — never ran until March 22, 2026
+- Airtable OAuth connection broken (400 error) — reconnected
+- Duplicate Google Drive connection deleted — consolidated to one
+- CSV modules referencing wrong source module numbers — remapped
+- Offers module had record limit of 10 — removed
+- Lead Intake output fields updated — added Lead Score, Owner State, Out of State Owner, Skip Trace Needed, Zoning Type
+- 3 new table branches added — Email Templates, Web Leads, Backup Log
+
+**PandaDoc - Create Offer Letter:**
+- Airtable module was writing to Automations Log instead of Offers — fixed
+- Airtable module fields were all empty — mapped Doc ID, PandaDoc URL, Offer Amount, Sent Date, Template, Doc Status
+- Send a document was off — sellers never received emails — fixed
+- Seller Date field empty — set to now
+- Duplicate Offer records (Prefect + Make both writing) — removed Prefect writeback, Make owns Offers table
+
+**PandaDoc - Create PSA:**
+- Scenario was Inactive — never ran — fixed
+- No Airtable writeback module at all — added
+- Send a document was off — fixed
+- Seller Date empty — fixed
+- Subject and Message fields empty — configured
+- Property.LegalDescription token added to template and synced to Make
 
 ---
 
@@ -261,8 +305,8 @@ All templates use `{{token}}` format for variable injection.
 |---|---|---|---|
 | Phase 0 | Business foundation + tech stack | ✅ 100% | LLC, bank account, tools configured |
 | Phase 1 | Lead ingest + enrichment automation | 🟡 20% | flow_leads.py built — Make automation pending |
-| Phase 2 | Offer generation | ✅ 100% | Crash fixed, Airtable writeback added, all deployments verified |
-| Phase 3 | Contract + reporting automation | 🟡 40% | Templates done, webhooks pending |
+| Phase 2 | Offer generation | ✅ 100% | Crash fixed, Airtable writeback, Make scenarios verified, sellers receive emails |
+| Phase 3 | Contract + reporting automation | 🟡 50% | Templates done, PSA flow live, PandaDoc webhooks active |
 | Phase 4 | Marketing auto-distribution | 🟡 30% | Accounts created, no posts |
 | Phase 5 | Buyer pipeline automation | ⏳ 20% | Tables ready, workflows pending |
 | Phase 6 | Closing + double-close automation | ⏳ 5% | Assignment template only |
@@ -280,8 +324,8 @@ All templates use `{{token}}` format for variable injection.
 1. ✅ Fix Prefect `SignatureMismatchError` — resolved, all deployments verified
 2. ✅ Airtable full audit + rebuild — all 13 tables restructured, 40+ fields added, 25+ views added
 3. ✅ Prefect code overhaul — real lead ingest, Airtable writeback on offers, proper logging
-4. ⏳ Audit Make scenarios — **starting next session**
-5. ⏳ Audit PandaDoc templates + webhooks
+4. ✅ Make audit — all 3 scenarios fixed, activated, and verified
+5. ✅ PandaDoc audit — both templates verified, sellers now receive documents via email
 6. ⏳ Complete Airtable data migration — link existing contacts to Parcels, clean deprecated fields
 7. ⏳ Build Phase 1 Make automation — lead import, dedupe, enrichment trigger
 8. ⏳ Build Claude API integrations — Dexter (property research), Milli (follow-ups)
@@ -299,16 +343,3 @@ All templates use `{{token}}` format for variable injection.
 | Gmail API | Email automation | Phase 1 |
 | Google Drive API | Document filing | Phase 3 |
 
----
-
-## Current Deal Activity
-
-| # | Owner | Acres | Assessed | Offer Sent | Status |
-|---|---|---|---|---|---|
-| #2 | Christopher Mogannam | 8.9 | $51,500 | $36,050 (70%) | Awaiting response |
-| #4 | James Hogan | 20.7 | $126,000 | $88,200 (70%) | Awaiting response |
-| #7 | Randy Vonsmith | 24.4 | $17,800 | Needs research | Zoning check needed |
-| #9 | Steven Maloy | 35.7 | $36,880 | Needs research | Over 30 acres — borderline |
-| #10 | Robert Allen | 9.0 | $74,200 | Needs research | Good candidate |
-
-**Note:** Original offers sent Nov 4, 2025 were at ~20% of assessed value based on old business model. Current model is 70% of assessed. Consider sending revised offers.
